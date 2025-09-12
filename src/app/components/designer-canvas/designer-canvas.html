@@ -129,21 +129,33 @@
            cdkDropList
            [cdkDropListData]="element.children"
            (cdkDropListDropped)="onElementDroppedOnLayout(element, $event)"
-           (mouseenter)="setElementRef(element, layoutDiv)">
+           (mouseenter)="setElementRef(element, layoutDiv)"
+           [style.grid-template-columns]="getGridTemplateColumns(element)"
+           [style.grid-template-rows]="getGridTemplateRows(element)">
         <!-- Grid visualization -->
-        <div *ngIf="shouldShowGrid(element)" class="grid-visualization">
-          <ng-container *ngFor="let rowIndex of getRowArray(getGridDimensions(element).rows)">
-            <ng-container *ngFor="let colIndex of getColumnArray(getGridDimensions(element).columns)">
-              <div class="grid-cell"
-                   [style]="getGridCellStyles(element, rowIndex, colIndex)">
-              </div>
-            </ng-container>
-          </ng-container>
+        <div *ngIf="shouldShowGrid(element)" 
+             class="grid-visualization"
+             [style.grid-template-columns]="getGridTemplateColumns(element)"
+             [style.grid-template-rows]="getGridTemplateRows(element)">
+          <div *ngFor="let index of getGridCellIndices(element); let i = index"
+               class="grid-cell"
+               [class.highlight-cell]="isHighlightedCell(element, i)"
+               [style.grid-row]="getGridRowPosition(i, element)"
+               [style.grid-column]="getGridColumnPosition(i, element)"
+               (mousemove)="onLayoutHover($event, element)"
+               (mouseleave)="onLayoutHoverExit(element)">
+          </div>
         </div>
         
         <!-- Grid children -->
         <ng-container *ngFor="let child of element.children">
-          <ng-container *ngTemplateOutlet="elementTemplate; context: { $implicit: child }"></ng-container>
+          <div class="grid-child" 
+               [style.grid-row-start]="child.properties.row + 1" 
+               [style.grid-row-end]="child.properties.row + 1 + (child.properties.rowSpan || 1)"
+               [style.grid-column-start]="child.properties.column + 1"
+               [style.grid-column-end]="child.properties.column + 1 + (child.properties.columnSpan || 1)">
+            <ng-container *ngTemplateOutlet="elementTemplate; context: { $implicit: child }"></ng-container>
+          </div>
         </ng-container>
       </div>
       

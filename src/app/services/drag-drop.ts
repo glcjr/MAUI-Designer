@@ -54,7 +54,8 @@ export class DragDropService {
     const layoutInfo = this.layoutDesigner.getLayoutInfo(targetParent.type);
     
     // Calculate appropriate position based on layout type
-    const position = this.layoutDesigner.calculateDropPosition(targetParent, { clientX: x, clientY: y } as MouseEvent, null!);
+    let domElement = targetParent.id === 'root' ? null! : targetParent.domElement!;
+    const position = this.layoutDesigner.calculateDropPosition(targetParent, { clientX: x, clientY: y } as MouseEvent, domElement!);
     
     // Get layout-specific properties for the child element
     const layoutProperties = this.layoutDesigner.getChildLayoutProperties(targetParent, element, position);
@@ -72,8 +73,8 @@ export class DragDropService {
     
     // Move element to new parent if different
     if (element.parent !== targetParent) {
-      this.elementService.moveElement(element, targetParent, position.x, position.y, insertionIndex);
-    } else {
+      this.elementService.moveElement(element, targetParent, 0, 0, insertionIndex);
+    } else if(element.parent.type === ElementType.AbsoluteLayout) {
       // Just update position if same parent
       this.elementService.updateElementProperties(element, { x: position.x, y: position.y });
     }
@@ -116,7 +117,7 @@ export class DragDropService {
   /**
    * Finds the layout element at a specific position on the canvas
    */
-  private findLayoutAtPosition(x: number, y: number, canvasElement: HTMLElement): MauiElement | null {
+  findLayoutAtPosition(x: number, y: number, canvasElement: HTMLElement): MauiElement | null {
     // Get all layout elements from the DOM
     const layoutElements = canvasElement.querySelectorAll('.layout-element');
     let layoutElementsAtPosition = [];
@@ -140,8 +141,6 @@ export class DragDropService {
       return this.elementService.getRootElement();
     }
 
-    console.log("Layout elements at position:", layoutElementsAtPosition);
-
     // Find the deepest layout element that can contain children
     let minNesting = 1000;
     let finalElement;
@@ -154,7 +153,6 @@ export class DragDropService {
     }
 
     deepestLayout = this.getMauiElementFromDOMElement(finalElement!);
-    console.log("Deepest layout at position:", deepestLayout);
 
     // If no specific layout found, return root element
     return deepestLayout || this.elementService.getRootElement();

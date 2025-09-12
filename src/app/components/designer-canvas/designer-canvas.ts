@@ -1,6 +1,6 @@
 import { Component, OnInit, ElementRef, ViewChild, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { DragDropModule, CdkDropList, CdkDragDrop } from '@angular/cdk/drag-drop';
+import { DragDropModule, CdkDropList, CdkDragDrop, CdkDragEnd, CdkDragMove } from '@angular/cdk/drag-drop';
 import { ElementService } from '../../services/element';
 import { DragDropService } from '../../services/drag-drop';
 import { LayoutDesignerService } from '../../services/layout-designer';
@@ -135,21 +135,44 @@ export class DesignerCanvasComponent implements OnInit {
   onDragStarted(element: MauiElement) {
   }
 
-  onDragEnded(element: MauiElement, event: any) {
+  onDragEnded(element: MauiElement, event: CdkDragEnd) {
     console.log("Drag released for element:", element, event);
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
 
-    this.dragDropService.handleCanvasDrop(element,element.properties.x! + event.distance.x,  element.properties.y! + event.distance.y, this.canvas.nativeElement);
+    var dropPoint = event.source.getFreeDragPosition();
+
+    this.dragDropService.handleCanvasDrop(element,dropPoint.x,  dropPoint.y, this.canvas.nativeElement);
 
     //this.elementService.moveElement(element, element.parent!,  element.properties.x! + event.distance.x,  element.properties.y! + event.distance.y)
 
     this.dragDropService.endDrag();
   }
 
-  onDragMoved(element: MauiElement, event: any) {
+  onDragMoved(element: MauiElement, event: CdkDragMove) {
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    // Get layout element over which we are passing currently
+    var layoutOver = this.dragDropService.findLayoutAtPosition(element.properties.x! + event.distance.x, element.properties.y! + event.distance.y, this.canvas.nativeElement)!;
 
-    //this.elementService.moveElement(element, element.parent!,  element.properties.x! + event.delta.x,  element.properties.y! + event.delta.y)
-      
-    // Coordinates are updated only on drop, not during drag
+    if(layoutOver.type === ElementType.Grid && this.layoutDesigner.getVisualHints(layoutOver).showGrid) {
+      const rect = (event.source.getRootElement() as HTMLElement).getBoundingClientRect();
+      const parentRect = layoutOver.domElement?.getBoundingClientRect();
+
+      const x = event.pointerPosition.x - (parentRect?.left || 0);
+      const y = event.pointerPosition.y - (parentRect?.top || 0);
+      const gridCell = this.layoutDesigner.getGridCellAtPosition(layoutOver, x, y, layoutOver.domElement!);
+      if(gridCell) {
+        this.highlightedGridCell = { element: layoutOver, row: gridCell.row, column: gridCell.column };
+        this.dropZonePreview = { element: layoutOver, visible: true };
+      } else {
+        this.highlightedGridCell = null;
+        this.dropZonePreview = null;
+      }
+    } else {
+      this.highlightedGridCell = null;
+      this.dropZonePreview = null;
+    }
+
+    layoutOver?.domElement?.classList.add('drag-over');
   }
 
   onElementDroppedOnLayout(targetLayout: MauiElement, event: CdkDragDrop<MauiElement[]>) {
@@ -319,6 +342,7 @@ export class DesignerCanvasComponent implements OnInit {
 
   // Layout-specific hover and drop methods
   onLayoutHover(event: MouseEvent, element: MauiElement) {
+
     if (element.type === ElementType.Grid) {
       const rect = (event.target as HTMLElement).getBoundingClientRect();
       const x = event.clientX - rect.left;
@@ -351,13 +375,15 @@ export class DesignerCanvasComponent implements OnInit {
     return {};
   }
 
-  // Check if an element should show visual grid
-  shouldShowGrid(element: MauiElement): boolean {
-    const hints = this.layoutDesigner.getVisualHints(element);
-    return hints.showGrid;
+  // Grid-related methods
+  isGridElement(element: MauiElement): boolean {
+    return element.type === ElementType.Grid;
   }
 
-  // Get grid dimensions for rendering
+  shouldShowGrid(element: MauiElement): boolean {
+    return this.isGridElement(element) && this.layoutDesigner.getVisualHints(element).showGrid;
+  }
+
   getGridDimensions(element: MauiElement): { rows: number, columns: number } {
     const gridDefinition = element.properties.gridDefinition || {
       rows: [{ height: { value: 1, type: 'Star' } }, { height: { value: 1, type: 'Star' } }],
@@ -370,12 +396,49 @@ export class DesignerCanvasComponent implements OnInit {
     };
   }
 
-  // Helper methods for template
-  getRowArray(count: number): number[] {
-    return Array.from({ length: count }, (_, i) => i);
+  getGridCellIndices(element: MauiElement): number[] {
+    const dims = this.getGridDimensions(element);
+    const totalCells = dims.rows * dims.columns;
+    return Array(totalCells).fill(0).map((_, i) => i);
   }
 
-  getColumnArray(count: number): number[] {
-    return Array.from({ length: count }, (_, i) => i);
+  getGridTemplateColumns(element: MauiElement): string {
+    const gridDef = element.properties.gridDefinition;
+    if (!gridDef) return 'repeat(2, 1fr)'; // Default 2 equal columns
+    return gridDef.columns.map(col => 
+      col.width.type === 'Star' ? `${col.width.value}fr` : 
+      col.width.type === 'Auto' ? 'auto' : 
+      `${col.width.value}px`
+    ).join(' ');
+  }
+
+  getGridTemplateRows(element: MauiElement): string {
+    const gridDef = element.properties.gridDefinition;
+    if (!gridDef) return 'repeat(2, 1fr)'; // Default 2 equal rows
+    return gridDef.rows.map(row => 
+      row.height.type === 'Star' ? `${row.height.value}fr` : 
+      row.height.type === 'Auto' ? 'auto' : 
+      `${row.height.value}px`
+    ).join(' ');
+  }
+
+  getGridRowPosition(index: number, element: MauiElement): string {
+    const dims = this.getGridDimensions(element);
+    const rowIndex = Math.floor(index / dims.columns) + 1;
+    return rowIndex.toString();
+  }
+
+  getGridColumnPosition(index: number, element: MauiElement): string {
+    const dims = this.getGridDimensions(element);
+    const colIndex = (index % dims.columns) + 1;
+    return colIndex.toString();
+  }
+
+  isHighlightedCell(element: MauiElement, index: number): boolean {
+    if (!this.highlightedGridCell || this.highlightedGridCell.element !== element) return false;
+    const dims = this.getGridDimensions(element);
+    const row = Math.floor(index / dims.columns);
+    const col = index % dims.columns;
+    return this.highlightedGridCell.row === row && this.highlightedGridCell.column === col;
   }
 }
