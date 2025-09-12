@@ -3,7 +3,7 @@ import { CdkDragDrop, CdkDragEnd, CdkDragStart, transferArrayItem } from '@angul
 import { ElementService } from './element';
 import { LayoutDesignerService } from './layout-designer';
 import { MauiElement, ElementType } from '../models/maui-element';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, min } from 'rxjs';
 
 export interface DragData {
   elementType?: ElementType;
@@ -119,8 +119,8 @@ export class DragDropService {
   private findLayoutAtPosition(x: number, y: number, canvasElement: HTMLElement): MauiElement | null {
     // Get all layout elements from the DOM
     const layoutElements = canvasElement.querySelectorAll('.layout-element');
+    let layoutElementsAtPosition = [];
     let deepestLayout: MauiElement | null = null;
-    let maxZIndex = -1;
 
     for (const element of Array.from(layoutElements)) {
       const rect = element.getBoundingClientRect();
@@ -132,17 +132,29 @@ export class DragDropService {
       
       // Check if point is within this element
       if (relativeX >= 0 && relativeX <= rect.width && relativeY >= 0 && relativeY <= rect.height) {
-        const zIndex = parseInt(window.getComputedStyle(element).zIndex) || 0;
-        
-        // Get the MauiElement from the DOM element
-        const mauiElement = this.getMauiElementFromDOMElement(element);
-        
-        if (mauiElement && zIndex >= maxZIndex) {
-          maxZIndex = zIndex;
-          deepestLayout = mauiElement;
-        }
+        layoutElementsAtPosition.push(element);
       }
     }
+
+    if(layoutElementsAtPosition.length === 0) {
+      return this.elementService.getRootElement();
+    }
+
+    console.log("Layout elements at position:", layoutElementsAtPosition);
+
+    // Find the deepest layout element that can contain children
+    let minNesting = 1000;
+    let finalElement;
+    for (const elem of layoutElementsAtPosition) {
+      const numberOfNestings = elem.querySelectorAll('.layout-element').length;
+      if(numberOfNestings < minNesting) {
+        minNesting = numberOfNestings;
+        finalElement = elem;
+      }
+    }
+
+    deepestLayout = this.getMauiElementFromDOMElement(finalElement!);
+    console.log("Deepest layout at position:", deepestLayout);
 
     // If no specific layout found, return root element
     return deepestLayout || this.elementService.getRootElement();

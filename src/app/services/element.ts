@@ -174,6 +174,11 @@ export class ElementService {
 
   updateElementCoordinatesSilently(element: MauiElement, x: number, y: number): void {
     // Update X and Y coordinates without triggering UI updates
+    if(element.parent?.type !== ElementType.AbsoluteLayout) {
+      console.warn("updateElementCoordinatesSilently is intended for elements within AbsoluteLayout only.");
+      return;
+    }
+
     element.properties.x = x;
     element.properties.y = y;
     // Note: We deliberately do NOT call this.elementsSubject.next() to avoid UI updates
@@ -197,24 +202,34 @@ export class ElementService {
   }
 
   moveElement(element: MauiElement, newParent: MauiElement, x: number, y: number, insertionIndex?: number): void {
-    // Remove from current parent
-    if (element.parent) {
-      const index = element.parent.children.indexOf(element);
-      if (index > -1) {
-        element.parent.children.splice(index, 1);
+
+    if(element.parent != newParent)
+    {
+      // Remove from current parent
+      if (element.parent) {
+        const index = element.parent.children.indexOf(element);
+        if (index > -1) {
+          element.parent.children.splice(index, 1);
+        }
+      }
+    
+      // Insert at specific index if provided, otherwise append
+      if (insertionIndex !== undefined && insertionIndex >= 0 && insertionIndex <= newParent.children.length) {
+        newParent.children.splice(insertionIndex, 0, element);
+      } else {
+        newParent.children.push(element);
       }
     }
 
     // Add to new parent
     element.parent = newParent;
-    element.properties.x = x;
-    element.properties.y = y;
     
-    // Insert at specific index if provided, otherwise append
-    if (insertionIndex !== undefined && insertionIndex >= 0 && insertionIndex <= newParent.children.length) {
-      newParent.children.splice(insertionIndex, 0, element);
-    } else {
-      newParent.children.push(element);
+    if(newParent.type !== ElementType.AbsoluteLayout) {
+      console.warn("updateElementCoordinatesSilently is intended for elements within AbsoluteLayout only.");
+    }
+    else{
+      element.properties.x = x;
+      element.properties.y = y;
     }
     
     this.elementsSubject.next(this.rootElement);

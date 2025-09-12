@@ -63,7 +63,6 @@ export class DesignerCanvasComponent implements OnInit {
 
   onElementClick(element: MauiElement, event: MouseEvent) {
     event.stopPropagation();
-    console.log("Selected element", element);
     this.elementService.selectElement(element);
   }
 
@@ -116,6 +115,7 @@ export class DesignerCanvasComponent implements OnInit {
       ElementType.StackLayout,
       ElementType.Grid,
       ElementType.AbsoluteLayout,
+      ElementType.VerticalStackLayout,
       ElementType.Frame,
       ElementType.ScrollView
     ].includes(element.type);
@@ -133,12 +133,14 @@ export class DesignerCanvasComponent implements OnInit {
   }
   
   onDragStarted(element: MauiElement) {
-    console.log("Drag started for element:", element);
   }
 
   onDragEnded(element: MauiElement, event: any) {
     console.log("Drag released for element:", element, event);
-    this.elementService.moveElement(element, element.parent!,  element.properties.x! + event.distance.x,  element.properties.y! + event.distance.y)
+
+    this.dragDropService.handleCanvasDrop(element,element.properties.x! + event.distance.x,  element.properties.y! + event.distance.y, this.canvas.nativeElement);
+
+    //this.elementService.moveElement(element, element.parent!,  element.properties.x! + event.distance.x,  element.properties.y! + event.distance.y)
 
     this.dragDropService.endDrag();
   }
